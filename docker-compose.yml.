@@ -1,0 +1,53 @@
+
+services:
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.17.2
+    ports:
+      - "5001:5001"
+    command: >
+      mlflow server
+      --host 0.0.0.0
+      --port 5001
+      --backend-store-uri sqlite:///mlflow.db
+      --default-artifact-root /mlartifacts
+    volumes:
+      - mlflow-data:/mlartifacts
+      - mlflow-db:/mlflow
+
+  train:
+    build: .
+    command: python train.py
+    environment:
+      MLFLOW_TRACKING_URI: http://mlflow:5001
+    depends_on:
+      - mlflow
+
+  app:
+    build: .
+    command: python app.py
+    ports:
+      - "5000:5000"
+    environment:
+      MLFLOW_TRACKING_URI: http://mlflow:5001
+    depends_on:
+      - train
+
+  prometheus:
+    image: prom/prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    depends_on:
+      - app
+
+  grafana:
+    image: grafana/grafana
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+
+volumes:
+  mlflow-data:
+  mlflow-db:
