@@ -8,11 +8,16 @@ services:
       mlflow server
       --host 0.0.0.0
       --port 5001
-      --backend-store-uri sqlite:///mlflow.db
+      --backend-store-uri sqlite:////mlflow/mlflow.db
       --default-artifact-root /mlartifacts
     volumes:
       - mlflow-data:/mlartifacts
       - mlflow-db:/mlflow
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5001/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
 
   train:
     build: .
@@ -20,7 +25,8 @@ services:
     environment:
       MLFLOW_TRACKING_URI: http://mlflow:5001
     depends_on:
-      - mlflow
+      mlflow:
+        condition: service_healthy
 
   app:
     build: .
@@ -30,7 +36,8 @@ services:
     environment:
       MLFLOW_TRACKING_URI: http://mlflow:5001
     depends_on:
-      - train
+      train:
+        condition: service_completed_successfully
 
   prometheus:
     image: prom/prometheus
